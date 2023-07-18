@@ -2,7 +2,6 @@ package cycletls
 
 import (
 	http "github.com/Danny-Dasilva/fhttp"
-        "net/http/cookiejar"
 	"time"
 
 	"golang.org/x/net/proxy"
