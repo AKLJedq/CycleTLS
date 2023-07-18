@@ -2,7 +2,7 @@ package cycletls
 
 import (
 	http "github.com/Danny-Dasilva/fhttp"
-
+        "net/http/cookiejar"
 	"time"
 
 	"golang.org/x/net/proxy"
@@ -10,9 +10,10 @@ import (
 
 type browser struct {
 	// Return a greeting that embeds the name in a message.
-	JA3       string
-	UserAgent string
-	Cookies   []Cookie
+	JA3                string
+	UserAgent          string
+	CookieJar          *cookiejar.Jar
+	InsecureSkipVerify bool
 }
 
 var disabledRedirect = func(req *http.Request, via []*http.Request) error {
@@ -28,6 +29,8 @@ func clientBuilder(browser browser, dialer proxy.ContextDialer, timeout int, dis
 		Transport: newRoundTripper(browser, dialer),
 		Timeout:   time.Duration(timeout) * time.Second,
 	}
+	
+	client.Jar = browser.CookieJar
 	//if disableRedirect is set to true httpclient will not redirect
 	if disableRedirect {
 		client.CheckRedirect = disabledRedirect
