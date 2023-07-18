@@ -22,7 +22,8 @@ type roundTripper struct {
 	// fix typing
 	JA3       string
 	UserAgent string
-
+	
+        InsecureSkipVerify bool
 	Cookies           []Cookie
 	cachedConnections map[string]net.Conn
 	cachedTransports  map[string]http.RoundTripper
@@ -106,7 +107,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		return nil, err
 	}
 
-	conn := utls.UClient(rawConn, &utls.Config{ServerName: host, InsecureSkipVerify: true}, // MinVersion:         tls.VersionTLS10,
+	conn := utls.UClient(rawConn, &utls.Config{ServerName: host, InsecureSkipVerify: rt.InsecureSkipVerify}, // MinVersion:         tls.VersionTLS10,
 		// MaxVersion:         tls.VersionTLS13,
 
 		utls.HelloCustom)
@@ -170,10 +171,9 @@ func newRoundTripper(browser browser, dialer ...proxy.ContextDialer) http.RoundT
 
 		return &roundTripper{
 			dialer: dialer[0],
-
+                        InsecureSkipVerify: browser.InsecureSkipVerify,
 			JA3:               browser.JA3,
 			UserAgent:         browser.UserAgent,
-			Cookies:           browser.Cookies,
 			cachedTransports:  make(map[string]http.RoundTripper),
 			cachedConnections: make(map[string]net.Conn),
 		}
@@ -181,10 +181,9 @@ func newRoundTripper(browser browser, dialer ...proxy.ContextDialer) http.RoundT
 
 	return &roundTripper{
 		dialer: proxy.Direct,
-
+                InsecureSkipVerify: browser.InsecureSkipVerify,
 		JA3:               browser.JA3,
 		UserAgent:         browser.UserAgent,
-		Cookies:           browser.Cookies,
 		cachedTransports:  make(map[string]http.RoundTripper),
 		cachedConnections: make(map[string]net.Conn),
 	}
