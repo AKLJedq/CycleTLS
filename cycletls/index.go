@@ -5,9 +5,10 @@ import (
 	"flag"
 	http "github.com/Danny-Dasilva/fhttp"
 	"github.com/gorilla/websocket"
-	"io/ioutil"
+	"io"
 	"log"
 	nhttp "net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"runtime"
@@ -16,18 +17,19 @@ import (
 
 // Options sets CycleTLS client options
 type Options struct {
-	URL             string            `json:"url"`
-	Method          string            `json:"method"`
-	Headers         map[string]string `json:"headers"`
-	Body            string            `json:"body"`
-	Ja3             string            `json:"ja3"`
-	UserAgent       string            `json:"userAgent"`
-	Proxy           string            `json:"proxy"`
-	Cookies         []Cookie          `json:"cookies"`
-	Timeout         int               `json:"timeout"`
-	DisableRedirect bool              `json:"disableRedirect"`
-	HeaderOrder     []string          `json:"headerOrder"`
-	OrderAsProvided bool              `json:"orderAsProvided"` //TODO
+	InsecureSkipVerify bool              `json:"insecureSkipVerify"`
+	URL                string            `json:"url"`
+	Method             string            `json:"method"`
+	Headers            map[string]string `json:"headers"`
+	Body               string            `json:"body"`
+	Ja3                string            `json:"ja3"`
+	UserAgent          string            `json:"userAgent"`
+	Proxy              string            `json:"proxy"`
+	Timeout            int               `json:"timeout"`
+	DisableRedirect    bool              `json:"disableRedirect"`
+	CookiesJar         *cookiejar.Jar    `json:"cookiesJar"`
+	HeaderOrder        []string          `json:"headerOrder"`
+	OrderAsProvided    bool              `json:"orderAsProvided"` //TODO
 }
 
 type cycleTLSRequest struct {
@@ -46,8 +48,10 @@ type fullRequest struct {
 type Response struct {
 	RequestID string
 	Status    int
+	BodyReader io.ReadCloser
 	Body      string
 	Headers   map[string]string
+	Url        string
 }
 
 //JSONBody converts response body to json
@@ -70,9 +74,10 @@ type CycleTLS struct {
 func processRequest(request cycleTLSRequest) (result fullRequest) {
 
 	var browser = browser{
-		JA3:       request.Options.Ja3,
-		UserAgent: request.Options.UserAgent,
-		Cookies:   request.Options.Cookies,
+		InsecureSkipVerify: request.Options.InsecureSkipVerify,
+		JA3:                request.Options.Ja3,
+		UserAgent:          request.Options.UserAgent,
+		CookieJar:          request.Options.CookiesJar,
 	}
 
 	client, err := newClient(
@@ -174,21 +179,10 @@ func dispatcher(res fullRequest) (response Response, err error) {
 		parsedError := parseError(err)
 
 		headers := make(map[string]string)
-		return Response{res.options.RequestID, parsedError.StatusCode, parsedError.ErrorMsg + "-> \n" + string(err.Error()), headers}, nil //normally return error here
+		return Response{RequestID: res.options.RequestID, Status: parsedError.StatusCode, Body: parsedError.ErrorMsg + "-> \n" + string(err.Error()), Headers: headers}, nil //normally return error here
 
 	}
-	defer resp.Body.Close()
-
-	encoding := resp.Header["Content-Encoding"]
-	content := resp.Header["Content-Type"]
-
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Print("Parse Bytes" + err.Error())
-		return response, err
-	}
-
-	Body := DecompressBody(bodyBytes, encoding, content)
+	
 	headers := make(map[string]string)
 
 	for name, values := range resp.Header {
@@ -200,7 +194,7 @@ func dispatcher(res fullRequest) (response Response, err error) {
 			}
 		}
 	}
-	return Response{res.options.RequestID, resp.StatusCode, Body, headers}, nil
+	return Response{RequestID: res.options.RequestID, Status: resp.StatusCode, BodyReader: resp.Body, Headers: headers, Url: resp.Request.URL.String(),}, nil
 
 }
 
